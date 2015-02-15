@@ -3,25 +3,52 @@ Reproducible Research: Peer Assessment 1
 by Anton Kuiper
 github repo with RMarkdown source code:
 https://github.com/antonkuiper/RepData_PeerAssessment1
+date : 14 February 2015
 
 
 ## 1 Loading and preprocessing the data
 
 ```r
+# Load packages
+suppressMessages(library(dplyr))
+library(knitr)
+library(ggplot2)
+# set working directory and download file
 setwd("D:/Coursera_Reproducible Research/assignment1/data")
 file <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
-download.file(file,destfile = "D:/Coursera_Reproducible Research/assignment1/data/repdata-data-activity.zip")
+download.file(file,destfile = "D:/Coursera_Reproducible Research/assignment1/data/repdata-data-activity.zip" ,method="curl")
+```
+
+```
+## Warning: running command 'curl
+## "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip" -o
+## "D:/Coursera_Reproducible
+## Research/assignment1/data/repdata-data-activity.zip"' had status 127
+```
+
+```
+## Warning in download.file(file, destfile = "D:/Coursera_Reproducible
+## Research/assignment1/data/repdata-data-activity.zip", : download had
+## nonzero exit status
+```
+
+```r
 dateDownloaded <- date()
 dateDownloaded
 ```
 
 ```
-## [1] "Sun Jan 18 23:24:19 2015"
+## [1] "Sun Feb 15 20:59:59 2015"
 ```
 
 ```r
+# prepare dataset
 unzip("repdata-data-activity.zip")
 activity <- read.csv("activity.csv")
+activitydf <- tbl_df(activity)
+```
+
+
 ```
 
 ## 2 What is the mean total number of steps taken per day?
@@ -30,8 +57,9 @@ activity <- read.csv("activity.csv")
 
 
 ```r
-steps.date <- aggregate(steps ~ date, data=activity, FUN=sum)
-barplot(steps.date$steps, names.arg=steps.date$date, xlab="date", ylab="steps")
+steps.date_inclNA <- aggregate(steps ~ date, data=activity, FUN=sum)
+hist(steps.date_inclNA$steps, main="Histogram of total number of steps per day", 
+     xlab="Total number of steps in a day")
 ```
 
 ![plot of chunk unnamed-chunk-2](figure/unnamed-chunk-2-1.png) 
@@ -40,7 +68,7 @@ barplot(steps.date$steps, names.arg=steps.date$date, xlab="date", ylab="steps")
 
 
 ```r
-mean(steps.date$steps)
+mean(steps.date_inclNA$steps)
 ```
 
 ```
@@ -48,7 +76,7 @@ mean(steps.date$steps)
 ```
 
 ```r
-median(steps.date$steps)
+median(steps.date_inclNA$steps)
 ```
 
 ```
@@ -61,8 +89,14 @@ median(steps.date$steps)
 
 
 ```r
-steps.interval <- aggregate(steps ~ interval, data=activity, FUN=mean)
-plot(steps.interval, type="l")
+# preprocessing data for plot
+# use the dataset without the NAs
+steps_by_interval <- aggregate(steps ~ interval, activitydf, mean)
+
+# create a time series plot 
+plot(steps_by_interval$interval, steps_by_interval$steps, type='l', 
+     main="Average number of steps over all days", xlab="Interval", 
+     ylab="Average number of steps")
 ```
 
 ![plot of chunk unnamed-chunk-4](figure/unnamed-chunk-4-1.png) 
@@ -71,11 +105,16 @@ plot(steps.interval, type="l")
 
 
 ```r
-steps.interval$interval[which.max(steps.interval$steps)]
+# find row with max of steps
+max_steps_row <- which.max(steps_by_interval$steps)
+
+# find interval with this max
+steps_by_interval[max_steps_row, ]
 ```
 
 ```
-## [1] 835
+##     interval    steps
+## 104      835 206.1698
 ```
 
 
@@ -106,10 +145,17 @@ values.
 
 
 ```r
-activity <- merge(activity, steps.interval, by="interval", suffixes=c("",".y"))
-nas <- is.na(activity$steps)
-activity$steps[nas] <- activity$steps.y[nas]
-activity <- activity[,c(1:3)]
+data_imputed <- activity
+for (i in 1:nrow(data_imputed)) {
+  if (is.na(data_imputed$steps[i])) {
+    interval_value <- data_imputed$interval[i]
+    steps_value <- steps_by_interval[
+      steps_by_interval$interval == interval_value,]
+    data_imputed$steps[i] <- steps_value$steps
+  }
+}
+# because in the dataset steps_by_interval has this steps_by_interval <- aggregate(steps ~ interval, activitydf, mean)
+# each interval step has its own mean value, and that is inputed into the dataset!
 ```
 
 4. Make a histogram of the total number of steps taken each day and
@@ -120,8 +166,8 @@ activity <- activity[,c(1:3)]
 
 
 ```r
-steps.date <- aggregate(steps ~ date, data=activity, FUN=sum)
-barplot(steps.date$steps, names.arg=steps.date$date, xlab="date", ylab="steps")
+steps.date <- aggregate(steps ~ date, data=data_imputed , FUN=sum)
+hist(steps.date$steps, main="Histogram of total number of steps per day (NA value = mean of interval",      xlab="Total number of steps in a day")
 ```
 
 ![plot of chunk unnamed-chunk-8](figure/unnamed-chunk-8-1.png) 
